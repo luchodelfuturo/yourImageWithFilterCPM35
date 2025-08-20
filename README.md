@@ -1,17 +1,9 @@
 # 📱 iOS Image Editor with CPM35-like Filter
 
-A professional iOS image editing app that applies a CPM35-like film filter to photos, built with modern iOS development practices.
-
 ## 🎯 Features
 
 - **CPM35-like Film Filter**: Simulates classic film photography with warm tones, lifted blacks, and soft highlights
-- **MVVM Architecture**: Clean separation of concerns with Combine for reactive programming
-- **Core Image Pipeline**: High-performance GPU-accelerated image processing
-- **Modern UI**: Programmatic UI with smooth animations and responsive design
-- **Photo Integration**: Seamless photo selection using PHPicker
-- **Before/After Comparison**: Toggle between original and filtered images
-- **Save to Photos**: Export filtered images to the photo library
-
+  
 ## 🏗️ Architecture
 
 ### MVVM + Combine
@@ -93,17 +85,6 @@ editImages/
 
 ## 🔧 Technical Highlights
 
-### Modern Swift Features
-- **Async/Await**: Non-blocking image processing
-- **Combine**: Reactive UI updates
-- **Protocols**: Dependency injection and testability
-- **Core Image**: GPU-accelerated processing
-
-### Performance Optimizations
-- **Shared CIContext**: Reused for better performance
-- **Background Processing**: UI remains responsive
-- **Memory Management**: Proper cleanup and optimization
-- **Color Space**: sRGB for consistent results
 
 ## 📱 Usage
 
@@ -112,31 +93,3 @@ editImages/
 3. **Compare**: Use "Before/After" to toggle between original and filtered
 4. **Save**: Tap "Save" to export the result to your photo library
 
-## 🧪 Testing
-
-The architecture supports easy testing:
-- **Protocols**: Mock services for unit testing
-- **MVVM**: Test business logic independently
-- **Combine**: Test reactive streams
-- **Dependency Injection**: Inject test doubles
-
-## 🔮 Future Enhancements
-
-- [ ] Multiple filter presets
-- [ ] Real-time filter intensity adjustment
-- [ ] Custom filter parameters
-- [ ] Batch processing
-- [ ] Social media sharing
-- [ ] Filter history
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
-## 👨‍💻 Author
-
-Built with ❤️ for demonstrating modern iOS development practices and Core Image capabilities.
-
----
-
-**Perfect for:** iOS developer portfolios, Core Image learning, MVVM architecture examples, and photo editing app demos.
