@@ -37,30 +37,32 @@ class ImageProcessingService: ImageProcessingServiceType {
     
     // MARK: - CPM35 Filter Constants
     private struct CPM35Constants {
-        // Temperature adjustment (makes image warmer)
-        static let temperatureNeutral = CIVector(x: 6500, y: 0)  // Standard daylight
-        static let temperatureTarget = CIVector(x: 5200, y: 0)   // Warmer tone
-        
-        // Color adjustments for film-like look
-        static let saturation: Float = 1.15    // More vivid colors
-        static let brightness: Float = 0.02    // Slightly brighter
-        static let contrast: Float = 1.08      // More contrast
-        
-        // Tone curve for lifted blacks and soft highlights (creates film look)
+        static let temperatureNeutral = CIVector(x: 6500, y: 0)
+        static let temperatureTarget  = CIVector(x: 5800, y: 0)
+
+        static let saturation: Float = 0.95
+        static let brightness: Float = -0.02
+        static let contrast:   Float = 0.90
+
         static let toneCurvePoints = [
-            CGPoint(x: 0, y: 0.05),    // Lift blacks (no pure black)
-            CGPoint(x: 0.25, y: 0.23), // Shadow adjustment
-            CGPoint(x: 0.5, y: 0.5),   // Midtones unchanged
-            CGPoint(x: 0.75, y: 0.78), // Highlight adjustment
-            CGPoint(x: 1, y: 0.95)     // Soft highlights (no pure white)
+            CGPoint(x: 0.00, y: 0.08),
+            CGPoint(x: 0.25, y: 0.24),
+            CGPoint(x: 0.50, y: 0.48),
+            CGPoint(x: 0.75, y: 0.78),
+            CGPoint(x: 1.00, y: 0.96)
         ]
-        
-        // Film grain simulation
-        static let grainAlpha: Float = 0.07    // Grain opacity
-        
-        // Vignette (darkens edges)
-        static let vignetteIntensity: Float = 0.8
-        static let vignetteRadius: Float = 1.8
+
+        static let shadowsColor = CIColor(red: 0.12, green: 0.18, blue: 0.18)
+        static let highlightsColor = CIColor(red: 1.04, green: 0.93, blue: 0.83)
+        static let splitToningIntensity: Float = 0.25
+
+        static let bloomRadius: Float = 2.5
+        static let bloomIntensity: Float = 0.25
+
+        static let vignetteIntensity: Float = 0.2
+        static let vignetteRadius: Float = 1.2
+
+        static let grainAlpha: Float = 0.50
     }
     
     func applyCPM35Like(to image: UIImage) async throws -> UIImage {
@@ -83,108 +85,123 @@ class ImageProcessingService: ImageProcessingServiceType {
     /// - Returns: A new UIImage with all filter effects applied
     /// - Throws: ImageProcessingError if any step in the pipeline fails
     private func processImage(_ image: UIImage) throws -> UIImage {
-        guard let ciImage = CIImage(image: image) else {
-            throw ImageProcessingError.invalidInput
-        }
-        
-        var currentImage = ciImage
-        
-        // Step 1: Make image warmer (like film)
+        guard let ciImage = CIImage(image: image) else { throw ImageProcessingError.invalidInput }
+        var img = ciImage
+
+        // Step 1: Temperature adjustment
         if let temperatureFilter = CIFilter(name: "CITemperatureAndTint") {
-            temperatureFilter.setValue(currentImage, forKey: kCIInputImageKey)
+            temperatureFilter.setValue(img, forKey: kCIInputImageKey)
             temperatureFilter.setValue(CPM35Constants.temperatureNeutral, forKey: "inputNeutral")
             temperatureFilter.setValue(CPM35Constants.temperatureTarget, forKey: "inputTargetNeutral")
-            
-            if let temperatureOutput = temperatureFilter.outputImage {
-                currentImage = temperatureOutput
-            }
+            img = temperatureFilter.outputImage ?? img
         }
-        
-        // Step 2: Adjust colors (more vivid, slightly brighter, more contrast)
-        let colorControlsFilter = CIFilter.colorControls()
-        colorControlsFilter.inputImage = currentImage
-        colorControlsFilter.saturation = CPM35Constants.saturation
-        colorControlsFilter.brightness = CPM35Constants.brightness
-        colorControlsFilter.contrast = CPM35Constants.contrast
-        
-        guard let colorControlsOutput = colorControlsFilter.outputImage else {
-            throw ImageProcessingError.filterFailed("Color Controls")
-        }
-        currentImage = colorControlsOutput
-        
-        // Step 3: Apply tone curve (lift blacks, soften highlights - creates film look)
-        let toneCurveFilter = CIFilter.toneCurve()
-        toneCurveFilter.inputImage = currentImage
-        toneCurveFilter.point0 = CPM35Constants.toneCurvePoints[0]
-        toneCurveFilter.point1 = CPM35Constants.toneCurvePoints[1]
-        toneCurveFilter.point2 = CPM35Constants.toneCurvePoints[2]
-        toneCurveFilter.point3 = CPM35Constants.toneCurvePoints[3]
-        toneCurveFilter.point4 = CPM35Constants.toneCurvePoints[4]
-        
-        guard let toneCurveOutput = toneCurveFilter.outputImage else {
-            throw ImageProcessingError.filterFailed("Tone Curve")
-        }
-        currentImage = toneCurveOutput
-        
-        // Step 4: Add film grain
-        let grainImage = createFilmGrain(for: currentImage)
-        currentImage = blendGrain(grainImage, over: currentImage, baseExtent: ciImage.extent)
-        
-        // Step 5: Add vignette (darken edges)
-        let vignetteFilter = CIFilter.vignette()
-        vignetteFilter.inputImage = currentImage
-        vignetteFilter.intensity = CPM35Constants.vignetteIntensity
-        vignetteFilter.radius = CPM35Constants.vignetteRadius
-        
-        guard let vignetteOutput = vignetteFilter.outputImage else {
-            throw ImageProcessingError.filterFailed("Vignette")
-        }
-        currentImage = vignetteOutput
-        
-        // Final step: Render to UIImage
-        guard let cgImage = Self.sharedContext.createCGImage(currentImage, from: currentImage.extent) else {
+
+        // Step 2: Color controls
+        let colorControls = CIFilter.colorControls()
+        colorControls.inputImage = img
+        colorControls.saturation = CPM35Constants.saturation
+        colorControls.brightness = CPM35Constants.brightness
+        colorControls.contrast = CPM35Constants.contrast
+        img = colorControls.outputImage ?? img
+
+        // Step 3: Tone curve
+        let toneCurve = CIFilter.toneCurve()
+        toneCurve.inputImage = img
+        toneCurve.point0 = CPM35Constants.toneCurvePoints[0]
+        toneCurve.point1 = CPM35Constants.toneCurvePoints[1]
+        toneCurve.point2 = CPM35Constants.toneCurvePoints[2]
+        toneCurve.point3 = CPM35Constants.toneCurvePoints[3]
+        toneCurve.point4 = CPM35Constants.toneCurvePoints[4]
+        img = toneCurve.outputImage ?? img
+
+        // Step 4: Subtle green tint
+        let greenTint = CIFilter.colorMatrix()
+        greenTint.inputImage = img
+        greenTint.rVector = CIVector(x: 0.99, y: 0, z: 0, w: 0)
+        greenTint.gVector = CIVector(x: 0, y: 1.01, z: 0, w: 0)
+        greenTint.bVector = CIVector(x: 0, y: 0, z: 0.99, w: 0)
+        greenTint.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        img = greenTint.outputImage ?? img
+
+        // Step 5: Split-toning
+        img = applySplitToning(base: img,
+                               shadows: CPM35Constants.shadowsColor,
+                               highlights: CPM35Constants.highlightsColor,
+                               intensity: CPM35Constants.splitToningIntensity)
+
+        // Step 6: Bloom
+        let bloom = CIFilter.bloom()
+        bloom.inputImage = img
+        bloom.intensity = CPM35Constants.bloomIntensity
+        bloom.radius = CPM35Constants.bloomRadius
+        img = bloom.outputImage ?? img
+
+        // Step 7: Film grain
+        let grain = createFilmGrain(for: img, alpha: CPM35Constants.grainAlpha)
+        img = blend(grain, over: img, mode: "CISoftLightBlendMode")
+
+        // Step 8: Vignette
+        let vignette = CIFilter.vignette()
+        vignette.inputImage = img
+        vignette.intensity = CPM35Constants.vignetteIntensity
+        vignette.radius = CPM35Constants.vignetteRadius
+        img = vignette.outputImage ?? img
+
+        // Render final
+        guard let cg = Self.sharedContext.createCGImage(img, from: img.extent) else {
             throw ImageProcessingError.renderingFailed
         }
-        
-        return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
+        return UIImage(cgImage: cg, scale: image.scale, orientation: image.imageOrientation)
     }
     
-    private func createFilmGrain(for baseImage: CIImage) -> CIImage {
-        // Step 1: Generate random noise
-        guard let noise = CIFilter.randomGenerator().outputImage?.cropped(to: baseImage.extent) else { 
-            return baseImage 
-        }
-        
-        // Step 2: Make it grayscale (film grain is not colored)
+    // MARK: - Helper Methods
+    
+    private func applySplitToning(base: CIImage, shadows: CIColor, highlights: CIColor, intensity: Float) -> CIImage {
+        guard let falseColor = CIFilter(name: "CIFalseColor",
+                                        parameters: [kCIInputImageKey: base,
+                                                     "inputColor0": shadows,
+                                                     "inputColor1": highlights])?.outputImage
+        else { return base }
+
+        let soft = CIFilter(name: "CISoftLightBlendMode",
+                            parameters: [kCIInputImageKey: falseColor, kCIInputBackgroundImageKey: base])?.outputImage ?? base
+
+        return lerp(base: base, overlay: soft, t: intensity)
+    }
+
+    private func lerp(base: CIImage, overlay: CIImage, t: Float) -> CIImage {
+        let mask = CIImage(color: CIColor(red: 1, green: 1, blue: 1, alpha: CGFloat(t))).cropped(to: base.extent)
+        return CIFilter(name: "CIBlendWithAlphaMask",
+                        parameters: [
+                            kCIInputImageKey: overlay,
+                            kCIInputBackgroundImageKey: base,
+                            kCIInputMaskImageKey: mask
+                        ])?.outputImage ?? overlay
+    }
+
+    private func createFilmGrain(for baseImage: CIImage, alpha: Float) -> CIImage {
+        guard let noise = CIFilter.randomGenerator().outputImage?.cropped(to: baseImage.extent) else { return baseImage }
+
         let gray = CIFilter.colorControls()
         gray.inputImage = noise
         gray.saturation = 0.0
-        
-        guard let grayNoise = gray.outputImage else { return baseImage }
-        
-        // Step 3: Adjust grain properties to look like film
-        let grainMatrix = CIFilter.colorMatrix()
-        grainMatrix.inputImage = grayNoise
-        // Make grain subtle and set transparency
-        grainMatrix.rVector = CIVector(x: 0.2, y: 0, z: 0, w: 0)
-        grainMatrix.gVector = CIVector(x: 0, y: 0.2, z: 0, w: 0)
-        grainMatrix.bVector = CIVector(x: 0, y: 0, z: 0.2, w: 0)
-        grainMatrix.aVector = CIVector(x: 0, y: 0, z: 0, w: CGFloat(CPM35Constants.grainAlpha))
-        grainMatrix.biasVector = CIVector(x: 0.4, y: 0.4, z: 0.4, w: 0)  // Center around middle gray
-        
-        return grainMatrix.outputImage?.cropped(to: baseImage.extent) ?? baseImage
+        let grayNoise = gray.outputImage ?? noise
+
+        let matrix = CIFilter.colorMatrix()
+        matrix.inputImage = grayNoise
+        matrix.rVector = CIVector(x: 0.35, y: 0, z: 0, w: 0)
+        matrix.gVector = CIVector(x: 0, y: 0.28, z: 0, w: 0)
+        matrix.bVector = CIVector(x: 0, y: 0, z: 0.28, w: 0)
+        matrix.aVector = CIVector(x: 0, y: 0, z: 0, w: CGFloat(alpha))
+        matrix.biasVector = CIVector(x: 0.32, y: 0.32, z: 0.32, w: 0)
+        return matrix.outputImage?.cropped(to: baseImage.extent) ?? baseImage
     }
-    
-    private func blendGrain(_ grainImage: CIImage, over baseImage: CIImage, baseExtent: CGRect) -> CIImage {
-        // Blend grain with photo using soft light (more natural than overlay)
-        if let softLight = CIFilter(name: "CISoftLightBlendMode") {
-            softLight.setValue(grainImage, forKey: kCIInputImageKey)              // grain on top
-            softLight.setValue(baseImage, forKey: kCIInputBackgroundImageKey)    // photo below
-            if let output = softLight.outputImage?.cropped(to: baseExtent) {
-                return output
-            }
-        }
-        return baseImage
+
+    private func blend(_ top: CIImage, over bottom: CIImage, mode: String) -> CIImage {
+        guard let f = CIFilter(name: mode) else { return bottom }
+        f.setValue(top, forKey: kCIInputImageKey)
+        f.setValue(bottom, forKey: kCIInputBackgroundImageKey)
+        return f.outputImage?.cropped(to: bottom.extent) ?? bottom
     }
 }
 
